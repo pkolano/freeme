@@ -1,0 +1,251 @@
+.TH "freeme" "1" "12 Aug 2019" "" ""
+./"################################################################
+.SH "NAME"
+./"################################################################
+\fBfreeme\fP \(em Filtering and Reorganization of Excessive E-Mail
+Emanation
+./"################################################################
+.SH "SYNOPSIS"
+./"################################################################
+.nf
+\fBfreeme\fP COMMAND [OPTION]... [ARGUMENT]...
+.fi
+.PP
+Process messages, manage subscriptions, or request historical messages
+according to the given command and options.
+./"################################################################
+.SH "DESCRIPTION"
+./"################################################################
+FreeMe is a tool for reducing e-mail clutter while highlighting messages
+of interest.  In particular, FreeMe was designed for large HPC
+environments, in which there are many thousands of interacting
+components that experience failures asynchronously.  During large-scale
+outages, administrators may receive overwhelming numbers of similar
+e-mails that may cause e-mails of unrelated failures to get lost in the
+shuffle and never resolved.
+.PP
+FreeMe allows each administrator to manage their own individual
+subscriptions with the ability to match full regular expressions against
+any e-mail field, providing fine-grained filtering.  Options include
+ignoring uninteresting messages, having messages be resent on demand, or
+having them sent in a consolidated digest format, which dramatically
+reduces the number of messages received.  FreeMe can also be used in a
+single-user configuration.
+.PP
+E-mails can either be processed as they are received in procmail-like
+fashion or read from an existing inbox.  Messages are matched against
+user directives, which consist of a set of regular expressions and a
+command.  When an e-mail matches all criteria, the command portion of
+the directive allows the e-mail to delivered as is, grouped into a
+digest with multiple matching messages, or ignored.  Original e-mails
+are kept in a historical archive that can be queried on demand.
+./"################################################################
+.SH "COMMANDS SUMMARY"
+./"################################################################
+The following commands are available in freeme.  Detailed descriptions are
+given in the next section.
+.PP
+.nf
+deliver               deliver summaries matching periodic subscriptions
+help                  show help
+ignore [OPTION]...    disregard messages matching OPTION(s) in subscriptions
+list                  list subscriptions with indices
+process               process messages on STDIN or mailbox file ARGUMENT(s)
+send [OPTION]...      send summary [-T] of messages matching OPTION(s)
+show [OPTION]...      show summary [-T] of messages matching OPTION(s)
+subscribe [OPTION]... send periodic [-p] summaries [-T] matching OPTION(s)
+unsubscribe [NUM]...  remove subscription(s) with index NUM
+.fi
+./"################################################################
+.SH "COMMANDS"
+./"################################################################
+.IP "\fBdeliver\fP"
+Evaluate the list of subscriptions across all users and send out any
+periodic summaries as specified.  This command is designed to be invoked
+from a cron job by a user who has access to all subscription information
+and the historical e-mail archive.  The interval at which the cron job
+runs determines the minimum value that is meaningful for the period
+option (\fB\-p/\-\-period\fP).  For example, the following crontab would
+deliver periodic summaries at most every five minutes:
+.PP
+.RS
+.nf
+*/5 * * * * /usr/local/bin/freeme deliver >&/dev/null
+.fi
+.RE
+.IP "\fBignore [OPTION]...\fP"
+Ignore messages in subscriptions of the given type (\fB\-T/\-\-type\fP)
+that match the given options.  A message is only included in a periodic
+summary if it matches some subscription specification and does not match
+an ignore specification.  Note that \fBignore\fP commands never apply to
+\fBsend\fP and \fBshow\fP commands.  An ignore specification may be
+removed using the \fBlist\fP and \fBunsubscribe\fP commands.
+.IP "\fBlist\fP"
+Output a list of numbered subscriptions.  Numbers may be used with the
+\fBunsubscribe\fP command to remove individual subscriptions.
+.IP "\fBprocess\fP"
+Process messages given over standard input or mailbox files given as
+arguments.  Messages that correspond to commands from authorized users
+will be processed as if they were given on the command line (note that
+the \fBdeliver\fP, \fBprocess\fP, and \fBshow\fP are not supported over
+this interface).  All other messages will be added to the historical
+archive and, if applicable, resent to users who have subscribed to
+full messages that match the given message(s).
+.IP "\fBsend [OPTION]...\fP"
+Send messages matching given options summarized in the given format
+(\fB\-T/\-\-type\fP).  This command requires that a date
+(\fB\-d/\-\-date\fP) and period (\fB\-p/\-\-period\fP) be specified.
+.IP "\fBshow [OPTION]...\fP"
+Print messages matching given options summarized in the given format
+(\fB\-T/\-\-type\fP).  This command requires that a date
+(\fB\-d/\-\-date\fP) and period (\fB\-p/\-\-period\fP) be specified.
+.IP "\fBsubscribe [OPTION]...\fP"
+Subscribe to messages matching the given options at the given period
+(\fB\-p/\-\-period\fP) summarized in the given form
+(\fB\-T/\-\-type\fP). Note that this command only adds an entry to the
+list of subscriptions.  The \fBdeliver\fP command must be configured to
+run periodically via cron in order for subscriptions to be processed.
+.IP "\fBunsubscribe [NUM]...\fP"
+Remove subscription(s) with index NUM.  Subscription numbers must first
+be obtained using the \fBlist\fP command.  Note that subscription
+numbers will change after this command has been executed.
+./"################################################################
+.SH "OPTIONS SUMMARY"
+./"################################################################
+The following options are available in freeme.  The \(cq\&=\(cq\& for
+options that take a parameter is optional; whitespace may be used
+instead.  Note that regular expressions are case-insensitive and must
+use Perl syntax (see perlre(1) for details).  Detailed descriptions
+are given in the next section.
+.PP
+.nf
+\-b, \-\-body=REGEX      message body matches REGEX
+\-c, \-\-cc=REGEX        message cc matches REGEX
+\-d, \-\-date=DATE       message date is after DATE [send/show]
+                        (DATE may be any format recognized by Date::Parse)
+\-f, \-\-from=REGEX      message from matches REGEX
+\-h, \-\-head NAME=REGEX message header field NAME matches regex REGEX
+\-p, \-\-period=TIME     summarize at intervals of TIME [send/show/subscribe]
+                        (use suffix {s,m,h,d,w} for {sc,mn,hr,dy,wk}}
+\-s, \-\-subject=REGEX   message subject matches REGEX
+\-t, \-\-to=REGEX        message to matching REGEX
+\-T, \-\-type=TYPE       summarize in type TYPE [ignore/send/show/subscribe]
+                        (TYPE one of {digest,headers,full [ignore]})
+.fi
+./"################################################################
+.SH "OPTIONS"
+./"################################################################
+.IP "\fB\-b, \-\-body=REGEX\fP"
+Messages must have a body that matches the given regular expression.
+.IP "\fB\-c, \-\-cc=REGEX\fP"
+Messages must have a carbon copy that matches the given regular
+expression.
+.IP "\fB\-d, \-\-date=DATE\fP"
+Messages must have a date at or after the given date.  Any date string
+supported by the Perl Date::Parse module (see Date::Parse(3) for
+details) can be specified.
+.IP "\fB\-f, \-\-from=REGEX\fP"
+Messages must have a source that matches the given regular expression.
+.IP "\fB\-h, \-\-head NAME=REGEX\fP"
+.IP "\fB\-p, \-\-period=TIME\fP"
+For the send and show commands, messages must have a date before the
+given time after the given date.  For the subscribe command, digest and
+header types 
+.IP "\fB\-s, \-\-subject=REGEX\fP"
+Messages must have a subject that matches the given regular
+expression.
+.IP "\fB\-t, \-\-to=REGEX\fP"
+Messages must have a destination that matches the given regular
+expression.
+.IP "\fB\-T, \-\-type=TYPE\fP"
+For the send, show, and subscribe commands, matching messages will be
+summarized in either "digest" or "headers" form.  The digest form
+includes the headers and bodies of all messages.  The headers form
+includes just the headers.  For the ignore command, the type indicates
+the summaries to which the other criteria will apply.  In this case, the
+type may also be "full", which will match full message subscriptions.
+./"################################################################
+.SH "EXAMPLES"
+./"################################################################
+Subscribe to all e-mails as soon as they are received:
+.PP
+.RS
+.nf
+\fBfreeme subscribe\fP
+.fi
+.RE
+.PP
+Subscribe to all e-mails, but group them together in digest format
+every 5 minutes:
+.PP
+.RS
+.nf
+\fBfreeme subscribe -T digest -p 5m\fP
+.fi
+.RE
+.PP
+Subscribe to all e-mails from imap.example.com in headers format every
+day:
+.PP
+.RS
+.nf
+\fBfreeme subscribe -T headers -p 1d -h received=imap.example.com\fP
+.fi
+.RE
+.PP
+Ignore messages about disabled accounts in full message subscriptions:
+.PP
+.RS
+.nf
+\fBfreeme ignore -T full -s "disabled account"\fP
+.fi
+.RE
+.PP
+Show all e-mail headers from July:
+.PP
+.RS
+.nf
+\fBfreeme show -d 7/1 -p 31d -T headers\fP
+.fi
+.RE
+.PP
+Send copy of all e-mail headers from July:
+.PP
+.RS
+.nf
+\fBfreeme send -d 7/1 -p 31d -T headers\fP
+.fi
+.RE
+.PP
+List your subscriptions
+.PP
+.RS
+.nf
+\fBfreeme list\fP
+.fi
+.RE
+.PP
+Unsubscribe from subscriptions #1 and #3:
+.PP
+.RS
+.nf
+\fBfreeme unsubscribe 1 3\fP
+.fi
+.RE
+./"################################################################
+.SH "FILES"
+./"################################################################
+/etc/freemerc
+.RS
+This file specifies various configuration items including base
+directory, logging, inbox, and authorized users.
+.RE
+./"################################################################
+.SH "AUTHOR"
+./"################################################################
+FreeMe was written by Paul Kolano.
+./"################################################################
+.SH "SEE ALSO"
+./"################################################################
+crontab(5), Date::Parse(3), perlre(1)
+ 

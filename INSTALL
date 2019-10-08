@@ -1,0 +1,254 @@
+FreeMe Installation and Configuration
+=====================================
+
+1. Prerequisites
+
+    o Perl
+
+
+2. Installation
+
+    Throughout the remainder, the following variables will be
+    referenced:
+
+         $PREFIX - directory level that contains bin and man subdirs
+           $BASE - directory to hold message archive and subscriptions
+           $USER - account under which messages are to be ingested
+
+    These variables should be expanded to whatever values they take in
+    the various examples (i.e. they are only to simplify the discussion
+    and not meant to be used as true shell variables).
+
+    2.1. Common installation
+
+        The primary files in all installations are the executable and
+        man page:
+
+            install -m 755 freeme $PREFIX/bin/
+            install -m 644 freeme.1 $PREFIX/man/man1/
+
+	2.2. Single-user installation
+
+        In a single-user installation, the configuration file must exist
+        in the user's home directory:
+
+		    install -m 600 freemerc ~/.freemerc
+
+        Typical values for the above variables would be:
+
+             PREFIX=~
+               BASE=~/.freeme
+               USER=`whoami`
+
+    2.3. Multi-user installation
+
+        In a multi-user installation, the configuration file must exist
+        in /etc and be readable by all users:
+
+            install -m 644 freemerc /etc/
+
+        Typical values for $PREFIX and $BASE would be:
+
+            PREFIX=/usr/local
+              BASE=/var/lib/freeme
+
+        The value for $USER is deployment-specific and must be chosen
+        based on suitable accounts available in the target environment.
+        Since $BASE may contain potentially sensitive information such
+        as root e-mails, it should be suitably protected:
+
+            chmod 700 $BASE
+
+        Permissions to allow legitimate users to access the information
+        within the base directory will be added later.
+
+
+3. Configuration
+
+    The following configuration assumes that message processing via
+    mechanisms similar to ~/.forward and/or /etc/aliases is available
+    in the local delivery agent (LDA).  Such support may take various
+    forms in various files depending on the LDA used so the following is
+    just an example that has been tested with postfix LDA.
+
+    If such support is not available, similar behavior can be achieved
+    by using a cron job that processes the inbox and moves/removes it to
+    prevent duplicate processing during the next invocation:
+
+        # process all messages in inbox
+        freeme process /path/to/inbox
+        # move inbox to dated location (if desired - can also be removed)
+        mv /path/to/inbox /path/to/inbox.`date +%s`
+
+    Note that if the inbox is being manipulated by another program
+    externally, appropriately locking may be required (depending on the
+    format of the inbox and the locking mechanism used by the LDA).
+
+    3.1. Common configuration
+
+        3.1.1. ~/.freemerc (single-user) or /etc/freemerc (multi-user)
+
+            Define the base directory used for storing historical
+            messages and user subscriptions using the "base_dir"
+            setting:
+
+                base_dir $BASE
+
+            If logging is desired, specify the location of the log file
+            using the "log_file" setting.  An example of this setting
+            would be:
+
+                log_file $BASE/freeme.log
+
+        3.1.2. /var/spool/cron/tabs/$USER
+
+            FreeMe relies on periodic invocation via cron to deliver
+            subscriptions.  The interval at which the cron job is
+            executed determines the minimum period at which
+            subscriptions will be delivered.  For example, the
+            following:
+
+	            */5 * * * * $PREFIX/bin/freeme deliver >&/dev/null
+
+            would deliver subscriptions in at most 5 minute intervals.
+            Subscriptions that define a period less than this (e.g.
+            --period=1m) would still be delivered, but not at the
+            defined rate since the cron job does not check often enough.
+            In this case, changing the "*/5" to "*" would allow
+            subscriptions with a period of 1 minute.
+
+    3.2. Single-user configuration
+
+        3.2.1. ~/.freemerc
+
+            In addition to the values in section 3.1.1, the destination
+            for subscriptions and queries must be specified together
+            with the invoking user.  In a single-user configuration,
+            the appropriate setting would typically be:
+
+                sub_$USER:$INBOX $USER
+
+            where $INBOX is a file/maildir to which messages are
+            appended.  It is recommended that $INBOX be in maildir
+            format to avoid locking issues.
+
+        3.2.2. ~/.forward
+
+            FreeMe relies on the mechanisms built-in to the LDA to
+            ingest messages.  The following line would ingest messages
+            as they arrive by invoking the appropriate command line:
+
+                "|$PREFIX/bin/freeme process"
+
+            To additionally save inbound messages to a local inbox
+            $INBOX, the term ",$INBOX" may be appended to this line.
+
+    3.3. Multi-user configuration
+
+        The following sections assume a desired configuration that
+        processes root e-mails and allow a set of administrators to view
+        and subscribe to them.  Other configurations are possible by
+        changing various details, but will not be discussed.
+
+	    3.3.1. /etc/freemerc
+
+            Subscription destinations must be mapped to users who issue
+            directives via the command-line interface and e-mail
+            interface.  Subscriptions are stored in files in $BASE/subs
+            under a name defined for each.  In addition to the values in
+            section 3.1.1, a setting "sub_$NAME:$TO $Ui" for each
+            subscription name $NAME must be defined that gives the
+            destination of messages $TO sent in response to subscription
+            requests and historical queries.  It may be either a local
+            inbox or an e-mail address.  Each user $Ui allowed to manage
+            the subscriptions to $TO can be either a local user account
+            that can use the command-line interface or an e-mail address
+            that can use the e-mail interface.  For example, the
+            following:
+
+                sub_johnsub:john@example.com john john.doe@example.com
+
+            would define a subscription named "johnsub" that allows
+            local user "john" and e-mails received from
+            "john.doe@example.com" to issue commands and manage
+            subscriptions sent to "john@example.com".  The corresponding
+            set of subscription definitions would be stored in the
+            file $BASE/subs/johnsub.  A separate line must be defined
+            for each subscription destination and managing more than one
+            destination by a single user is not currently supported.
+
+        3.3.2. $BASE/mail and $BASE/subs
+
+            It is assumed that all files under $BASE are owned by $USER.
+            When using the command-line interface, local users who are
+            not $USER need appropriate permissions to access historical
+            messages and/or manage their subscriptions.  Appropriate
+            access can be granted using the following for each local
+            user $LU that can manage subscription settings for $NAME
+            (i.e. there is a configuration setting sub_$NAME:$TO $LU):
+
+                setfacl -m u:$LU:x $BASE
+                setfacl -m u:$LU:x $BASE/subs
+                setfacl -m u:$LU:x $BASE/mail
+                touch $BASE/subs/$NAME
+                chmod 600 /$BASE/subs/$NAME
+                setfacl -m u:$LU:rw $BASE/subs/$NAME
+
+            These settings allow the local user to traverse the
+            directory containing the historical archive and to modify
+            relevant subscription files.
+
+        3.3.3. /etc/aliases (or equivalent LDA mechanism)
+
+            FreeMe relies on the mechanisms built-in to the LDA to
+            ingest messages.  In a multi-system environment, there are
+            two main options for forwarding messages to a central host
+            (designated as $HOST in the remainder).  Variations of these
+            configurations can be used if multiple redundant central
+            hosts are desired.  Note that FreeMe only needs to be
+            installed on $HOST.
+
+            3.3.3.1. Forward messages to $HOST via e-mail
+
+                If $HOST can receive e-mail externally, /etc/aliases
+                on each origin host can be configured to forward
+                messages directly:
+
+                    root: $USER@$HOST
+
+                On $HOST, /etc/aliases (or ~$USER/.forward) must be
+                configured to ingest messages:
+
+                    $USER: "|$PREFIX/bin/freeme process"
+
+            3.3.3.2. Forward messages to $HOST via ssh
+
+                In some environments, systems may not be permitted to
+                accept e-mail externally.  In this case, an alternate
+                mechanism must be used to transport messages to $HOST.
+                The suggested configuration is to forward messages via
+                ssh on each origin host:
+
+                    root: "|/usr/bin/ssh $USER@$HOST -i /path/to/key \
+                        $PREFIX/bin/freeme process"
+
+                In this configuration, /path/to/key is a private ssh
+                key.  Since /etc/aliases commands are typically run as
+                the user "nobody", this key must be accessible by the
+                nobody account.  In order for this key to be used for
+                authentication on $HOST as $USER, the contents of the
+                public key associated with /path/to/key (e.g.
+                /path/to/key.pub) must be added to
+                ~$USER/.ssh/authorized_keys on $HOST.  Since the
+                nobody account may be used by multiple services for
+                various purposes, it is desirable to lock down what it
+                can do when forwarding messages.  This can be achieved
+                by adding an appropriate forced command to the
+                authorized_keys entry:
+
+	                command="$PREFIX/bin/freeme process" <key.pub contents>
+
+                Here, "<key.pub contents>" must be replaced with the
+                actual contents of the public key file associated with
+                /path/to/key as discussed above.
+

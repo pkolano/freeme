@@ -1,0 +1,34 @@
+#
+# Skeleton configuration file for FreeMe.
+#
+# This file should be located in /etc/freemerc for multi-user installs
+# and in ~/.freemerc for single-user installs.
+#
+# Items that are commented out show the default value.
+#
+# A value of nodefault indicates no default value for that item.
+#
+# Items that are not commented out indicate values that must be
+# explicitly configured.  The values given for these items are
+# examples only.
+#
+
+# directory where subscriptions and archived e-mails are stored
+#   (multi-user example: base_dir /var/lib/freeme)
+#   (single-user example: base_dir ~/.freeme)
+#base_dir ~/.freeme
+
+# file to which log output will be written
+#	(note that log file may consume significant space)
+#   (multi-user example: log_file /var/lib/freeme/freeme.log)
+#   (single-user example: log_file ~/.freeme/freeme.log)
+#log_file nodefault
+
+# deliver subscriptions managed by users Ui to NAME'd destination TO
+#	(format of NAME is alphanumeric identifier)
+#	(format of TO is either local inbox file/dir or e-mail address)
+#	(format of Ui is local user name or e-mail address)
+#	(example inbox delivery: sub_/var/spool/mail/john john john.doe@example.com)
+#	(example e-mail delivery: sub_john@example.com john john.doe@example.com)
+#sub_NAME:TO U1 U2 ... UN
+
