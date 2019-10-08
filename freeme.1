@@ -16,6 +16,7 @@ according to the given command and options.
 ./"################################################################
 .SH "DESCRIPTION"
 ./"################################################################
+
 FreeMe is a tool for reducing e-mail clutter while highlighting messages
 of interest.  In particular, FreeMe was designed for large HPC
 environments, in which there are many thousands of interacting
@@ -26,19 +27,14 @@ shuffle and never resolved.
 .PP
 FreeMe allows each administrator to manage their own individual
 subscriptions with the ability to match full regular expressions against
-any e-mail field, providing fine-grained filtering.  Options include
-ignoring uninteresting messages, having messages be resent on demand, or
-having them sent in a consolidated digest format, which dramatically
-reduces the number of messages received.  FreeMe can also be used in a
+any e-mail field, providing fine-grained filtering.  E-mails can either
+be processed as they are received in procmail-like fashion or read from
+an existing inbox.  Options include ignoring uninteresting messages,
+having messages be resent on demand, or having them sent in a
+consolidated digest format, which dramatically reduces the number of
+messages received.  Original e-mails are kept in a historical archive
+that can be queried on demand.  FreeMe can also be used in a
 single-user configuration.
-.PP
-E-mails can either be processed as they are received in procmail-like
-fashion or read from an existing inbox.  Messages are matched against
-user directives, which consist of a set of regular expressions and a
-command.  When an e-mail matches all criteria, the command portion of
-the directive allows the e-mail to delivered as is, grouped into a
-digest with multiple matching messages, or ignored.  Original e-mails
-are kept in a historical archive that can be queried on demand.
 ./"################################################################
 .SH "COMMANDS SUMMARY"
 ./"################################################################
