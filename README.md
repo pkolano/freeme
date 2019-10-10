@@ -21,7 +21,8 @@ that can be queried on demand.  FreeMe can also be used in a
 single-user configuration.
 
 For installation details, see "INSTALL".  For usage details, see
-"freeme.1" (in man page format, viewable with "nroff -man").
+"freeme.1" (in man page format, viewable with "nroff -man").  For
+license details, see "COPYING".
 
 Questions, comments, fixes, and/or enhancements welcome.
 
