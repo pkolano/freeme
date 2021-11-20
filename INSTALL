@@ -179,6 +179,12 @@ FreeMe Installation and Configuration
 
         3.3.2. $BASE/mail and $BASE/subs
 
+            Historical mail is stored in $BASE/mail and subscriptions
+            are stored in $BASE/subs.  These directories must be
+            created:
+
+                mkdir -m 700 $BASE/mail $BASE/subs
+
             It is assumed that all files under $BASE are owned by $USER.
             When using the command-line interface, local users who are
             not $USER need appropriate permissions to access historical
@@ -191,7 +197,7 @@ FreeMe Installation and Configuration
                 setfacl -m u:$LU:x $BASE/subs
                 setfacl -m u:$LU:x $BASE/mail
                 touch $BASE/subs/$NAME
-                chmod 600 /$BASE/subs/$NAME
+                chmod 600 $BASE/subs/$NAME
                 setfacl -m u:$LU:rw $BASE/subs/$NAME
 
             These settings allow the local user to traverse the
@@ -251,4 +257,19 @@ FreeMe Installation and Configuration
                 Here, "<key.pub contents>" must be replaced with the
                 actual contents of the public key file associated with
                 /path/to/key as discussed above.
+
+                Since this mechanism is subject to failures, to protect
+                against lost e-mails, a sample of a more fault-tolerant
+                command that can be used in /etc/aliases is included in
+                the file "freeme_relay.sample".  This command will
+                attempt to process the message via freeme on a remote
+                host, but if this fails, will then try to send the
+                message to a backup e-mail address from the local host,
+                or finally, if this fails, save the e-mail to a local
+                spool file.  To use this file, adjust configuration
+                parameters near the top, copy to /usr/bin/freeme_relay
+                (or other system default bin directory), make world
+                executable, and change the /etc/aliases line to:
+
+                    root: "|/usr/bin/freeme_relay"
 

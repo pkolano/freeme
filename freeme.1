@@ -1,4 +1,4 @@
-.TH "freeme" "1" "12 Aug 2019" "" ""
+.TH "freeme" "1" "19 Nov 2021" "" ""
 ./"################################################################
 .SH "NAME"
 ./"################################################################
@@ -121,11 +121,11 @@ are given in the next section.
 \-f, \-\-from=REGEX      message from matches REGEX
 \-h, \-\-head NAME=REGEX message header field NAME matches regex REGEX
 \-p, \-\-period=TIME     summarize at intervals of TIME [send/show/subscribe]
-                        (use suffix {s,m,h,d,w} for {sc,mn,hr,dy,wk}}
+                        (use suffix {s,m,h,d,w} for {sec,min,hour,day,week}}
 \-s, \-\-subject=REGEX   message subject matches REGEX
 \-t, \-\-to=REGEX        message to matching REGEX
 \-T, \-\-type=TYPE       summarize in type TYPE [ignore/send/show/subscribe]
-                        (TYPE one of {digest,headers,full [ignore]})
+                        (TYPE one of {digest,headers})
 .fi
 ./"################################################################
 .SH "OPTIONS"
@@ -153,12 +153,13 @@ expression.
 Messages must have a destination that matches the given regular
 expression.
 .IP "\fB\-T, \-\-type=TYPE\fP"
-For the send, show, and subscribe commands, matching messages will be
+For the send, show, and subscribe commands, matching messages can be
 summarized in either "digest" or "headers" form.  The digest form
 includes the headers and bodies of all messages.  The headers form
-includes just the headers.  For the ignore command, the type indicates
-the summaries to which the other criteria will apply.  In this case, the
-type may also be "full", which will match full message subscriptions.
+includes just the headers.  For the ignore command, this field indicates
+the type of summary to which the other match criteria will be applied.
+When not specified, full messages will be matched except subscriptions
+with a specified period, which has the default of "digest".
 ./"################################################################
 .SH "EXAMPLES"
 ./"################################################################
@@ -192,7 +193,7 @@ Ignore messages about disabled accounts in full message subscriptions:
 .PP
 .RS
 .nf
-\fBfreeme ignore -T full -s "disabled account"\fP
+\fBfreeme ignore -s "disabled account"\fP
 .fi
 .RE
 .PP
@@ -232,8 +233,13 @@ Unsubscribe from subscriptions #1 and #3:
 ./"################################################################
 /etc/freemerc
 .RS
-This file specifies various configuration items including base
+This file specifies various global configuration items including base
 directory, logging, inbox, and authorized users.
+.RE
+.PP
+$HOME/.freemerc
+.RS
+This file specifies per user overrides of global configuration.
 .RE
 ./"################################################################
 .SH "AUTHOR"

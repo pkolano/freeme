@@ -1,0 +1,69 @@
+#!/usr/bin/perl -T
+
+# This program is executed by user "nobody" via /etc/aliases to forward
+# emails for processing by freeme on a specified host.  On error, it
+# will try to send to a backup email address from the local system or,
+# failing that, save the message to a local spool file.
+
+use strict;
+
+our $VERSION = 0.02;
+
+my %opts = (
+    # backup email address if host unable to process messages
+    email => 'backup@example.com',
+    # host that performs freeme processing
+    host => "freeme_host",
+    # private key to access host as user
+    #   (public key must be on host in ~user/.ssh/authorized_keys)
+    #   (must be readable by user nobody)
+    key => "/etc/freeme.key",
+    # program used to send to backup email address
+    mta => "sendmail",
+    # last resort spool (must be writable by user nobody)
+    spool => "/var/spool/mail/freeme",
+    # user that performs freeme processing on host
+    user => "freeme_user",
+);
+
+# untaint path
+$ENV{PATH} = "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin";
+# untaint insecure environment variables
+delete $ENV{$_} foreach (qw(BASH_ENV CDPATH ENV IFS));
+
+# make sure last resort spool is not readable by others
+umask 077;
+
+# grab message text
+my $text;
+$text .= $_ while (<STDIN>);
+
+my $rc;
+$SIG{PIPE} = sub {
+    $rc = 0;
+};
+
+# try freeme first (command is forced on remote side)
+$rc = open(FREEME, '|-', qw(ssh -q -oBatchMode=yes -i), $opts{key},
+    "-l", $opts{user}, $opts{host}, qw(freeme process));
+if ($rc) {
+    print FREEME $text;
+    $rc = close FREEME;
+}
+if (!$rc) {
+    # send to css-cteam when freeme fails
+    $rc = open(MAIL, '|-', $opts{mta}, $opts{email});
+    if ($rc) {
+        print MAIL $text;
+        $rc = close MAIL;
+    }
+    if (!$rc) {
+        # save to local spool as last resort
+        if (open(LOG, '>>', $opts{spool})) {
+            print LOG $text;
+            close LOG;
+        }
+        # there is no other backup mechanism
+    }
+}
+

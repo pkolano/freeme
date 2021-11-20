@@ -1,0 +1,15 @@
+CHANGES
+=======
+
+* FreeMe 1.0 (10/08/19)
+    - First public release
+
+* FreeMe 1.1 (11/19/21)
+    - Added clickable HTML table of contents to send/deliver digest view
+    - Added colorization of messages in digest view
+    - Added template for fault-tolerant relaying of messages
+    - Fixed digest/headers delivery when period greater than cron interval
+    - Fixed daily digest/headers delivery when cron interval less than a day
+    - Fixed bad delivery when subscription exists for user not defined in config
+    - Fixed parsing of show commands when date specification has spaces
+    - Removed "full" type, which is now implied when --type not specified

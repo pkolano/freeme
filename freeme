@@ -2,7 +2,7 @@
 #
 # Notices
 # FreeMe
-# Copyright (C) 2019 United States Government as represented by the
+# Copyright (C) 2019-2021 United States Government as represented by the
 # Administrator of the National Aeronautics and Space Administration.
 # All Rights Reserved.
 # 
@@ -51,12 +51,23 @@ require Date::Parse;
 use File::Basename;
 use File::Path;
 use Getopt::Long qw(:config bundling no_auto_abbrev no_ignore_case require_order);
+use List::Util qw(max);
 require Mail::Box::Manager;
 require Mail::Message;
 use POSIX qw(strftime);
+use Term::ANSIColor;
 use Text::ParseWords;
 
-our $VERSION = 1.0;
+our $VERSION = 1.1;
+
+# solarized foreground colors
+my @colors = qw(
+    #b58900 #cb4b16 #dc322f #d33682 #6c71c4 #268bd2 #2aa198 #859900
+);
+
+my @tcolors = qw(
+    yellow red magenta blue cyan green
+);
 
 # second string conversions
 my %seconds = (
@@ -143,7 +154,7 @@ if ($cmd0 eq 'deliver') {
     if (!defined $to) {
         print "ERROR: No destination exists for $user\n";
     } else {
-        print process_cmd(join(" ", $cmd0, @ARGV), $to);
+        print process_cmd([$cmd0, @ARGV], $to);
     }
 }
 
@@ -151,16 +162,26 @@ if ($cmd0 eq 'deliver') {
 #### build_body ####
 ####################
 sub build_body {
-    my ($msg, $type, $count) = @_;
+    my ($msg, $type, $toc) = @_;
+    return if (!$type);
     my $body;
     my $from = ($msg->sender)[0]->address;
     my $stamp = localtime($msg->timestamp);
     my $subj = $msg->subject;
+    my $header = "$stamp $from $subj";
+    push(@{$toc}, $header);
+    my $i = scalar(@{$toc});
     if ($type eq 'headers') {
-        $body = "$stamp $from $subj\n";
+        $body = $header . "\n";
     } elsif ($type eq 'digest') {
-        $body .= "\n" . "-" x 60 . "\n";
-        $body .= "\nMessage: $count";
+        if ($cmd0 ne 'show') {
+            my $color = $colors[($i - 1) % scalar(@colors)];
+            $body .= "<div style=\"color:$color\"/>\n";
+            $body .= "<a name=\"digest_msg$i\"/>\n";
+            $body .= "<pre>";
+        }
+        $body .= "-" x 60 . "\n";
+        $body .= "\nMessage: $i";
         $body .= "\nDate: $stamp";
         $body .= "\nFrom: $from";
         my $to = $msg->get('To');
@@ -171,8 +192,18 @@ sub build_body {
         $body .= "\nMessage-ID: " . $msg->messageId;
         $body .= "\nContent-Type: " . $msg->contentType;
         $body .= "\n\n" . $msg->decoded->string . "\n";
+        if ($cmd0 eq 'show') {
+            print color 'reset';
+        } else {
+            $body .= "</pre>\n";
+        }
     }
-    return $body;
+    if ($cmd0 eq 'show' && $type ne 'headers') {
+        my $color = $tcolors[($i - 1) % scalar(@tcolors)];
+        return colored($body, $color);
+    } else {
+        return $body;
+    }
 }
 
 #################
@@ -209,10 +240,13 @@ sub deliver {
             }
             next if (int($last / $period) >= int($time / $period));
             # time to send it
-            my $count = 1;
             my $body;
+            my $toc = [];
 
-            for (my $t = $last; $t < $last + $period; $t += $seconds{d}) {
+            my $start = $period * int($last / $period);
+            my $end = $period * int($time / $period);
+            for (my $t = $start; $t <= max($end, $start + $seconds{d});
+                    $t += $seconds{d}) {
                 my $name = strftime("$conf{base_dir}/mail/%Y/%m/%d",
                     localtime $t);
                 # disable warnings about missing files
@@ -223,21 +257,32 @@ sub deliver {
                 );
                 next if (!$box);
                 MESSAGE: foreach my $msg ($box->messages) {
-                    next if ($msg->timestamp < $last || !match_msg($msg, $sub));
+                    next if ($msg->timestamp < $start ||                                                                              $msg->timestamp >= $end || !match_msg($msg, $sub));
                     foreach my $sub2 (@{$subs{$to}}) {
                         next MESSAGE if ($sub2->{cmd} eq 'ignore' &&
-                            (!defined $sub2->{type} || $sub->{type} eq
-                            $sub2->{type}) && match_msg($msg, $sub2));
+                            $sub->{type} eq $sub2->{type} && match_msg($msg, $sub2));
                     }
-                    $body .= build_body($msg, $sub->{type}, $count);
-                    $count++;
+                    $body .= build_body($msg, $sub->{type}, $toc);
                 }
                 $box->close;
             }
-            if ($count > 1) {
+            if (scalar(@{$toc})) {
                 my $subj = "subscribe " . join(" ",
                     map {"--$_=$sub->{$_}"} grep(!/^cmd$/, keys(%{$sub})));
+                if ($cmd0 ne 'show' && $sub->{type} ne 'headers') {
+                    my $html = "<html><head><title>$subj</title></head><body>\n";
+                    my $i = 1;
+                    foreach my $head (@{$toc}) {
+                        $html .= "$i: <a href=\"#digest_msg$i\">$head</a><br/>\n";
+                        $i++;
+                    }
+                    $html .= "$body\n</body></html>\n";
+                    $body = $html;
+                }
                 my $reply = Mail::Message->build(
+                    'Content-Type' => "text/" .
+                        ($cmd0 eq 'show' || $sub->{type} eq 'headers' ?
+                            "plain" : "html"),
                     data => $body,
                     Subject => "Fwd: $subj",
                     To => $to =~ /@/ ? $to : 'freeme@localhost',
@@ -256,8 +301,9 @@ sub deliver {
 ###################
 sub load_subs {
     foreach my $file (glob("$conf{base_dir}/subs/*")) {
+        my $name = basename($file);
+        next if (!$names{$name});
         if (open(FILE, $file)) {
-            my $name = basename($file);
             while (<FILE>) {
                 process_cmd($_, $names{$name}, 1);
             }
@@ -319,11 +365,18 @@ sub process_box {
 #####################
 sub process_cmd {
     my ($subj, $to, $parse) = @_;
-    my @args = quotewords('\s+', 0, $subj);
+    my @args;
+    if (ref $subj) {
+        @args = @{$subj};
+        $subj = join(" ", @args);
+    } else {
+        @args = quotewords('\s+', 0, $subj);
+    }
     my $cmd = shift @args;
     my $err;
     my %opts;
     my $body;
+    my $toc = [];
     my $file = "$conf{base_dir}/subs/" . $tos{$to};
     my @save = @ARGV;
     @ARGV = @args;
@@ -349,14 +402,11 @@ sub process_cmd {
     } elsif (defined $opts{period} && $opts{period} !~ /^([1-9]\d*)([smhdw])?$/i) {
         $body = "ERROR: Invalid period specification\n";
         $err = 1;
-    } elsif (defined $opts{type} && $opts{type} !~ /^(?:digest|full|headers)/) {
+    } elsif (defined $opts{type} && $opts{type} !~ /^(?:digest|headers)/) {
         $body = "ERROR: Invalid type specification\n";
         $err = 1;
     } elsif ($cmd =~ /^(?:send|show)$/ && !defined $opts{date}) {
         $body = "ERROR: Missing date specification\n";
-        $err = 1;
-    } elsif ($cmd ne 'ignore' && $opts{type} eq 'full') {
-        $body = "ERROR: Type \"full\" is only valid for ignore\n";
         $err = 1;
     } elsif (($cmd =~ /^(?:send|show)$/ || $cmd eq 'subscribe' &&
             defined $opts{type}) && !defined $opts{period}) {
@@ -403,7 +453,6 @@ sub process_cmd {
             $period = $1 * $seconds{lc $unit};
         }
      
-        my $count = 1;
         for (my $t = $opts{time}; $t < $opts{time} + $period;
                 $t += $seconds{d}) {
             my $name = strftime("$conf{base_dir}/mail/%Y/%m/%d",
@@ -418,8 +467,7 @@ sub process_cmd {
             foreach my $amsg ($box->messages) {
                 next if ($amsg->timestamp > $opts{time} + $period ||
                         !match_msg($amsg, \%opts));
-                $body .= build_body($amsg, $opts{type}, $count);
-                $count++;
+                $body .= build_body($amsg, $opts{type}, $toc);
             }
             $box->close;
         }
@@ -428,9 +476,7 @@ sub process_cmd {
             # subscribe to everything if no opts specified
             $opts{"head-from"} = ".*" if (scalar(keys %opts) == 0);
             $opts{cmd} = $cmd;
-            if (!defined $opts{type}) {
-                $opts{type} = $opts{period} ? "digest" : "full";
-            }
+            $opts{type} = "digest" if (!defined $opts{type} && $opts{period});
             push(@{$subs{$to}}, \%opts);
         } else {
             if (open(FILE, '>>', $file)) {
@@ -477,7 +523,18 @@ sub process_cmd {
     }
     return undef if ($parse);
     return $body if ($cmd0 ne 'process' && ($cmd ne 'send' || $err));
+    if ($cmd eq 'send' && $opts{type} ne 'headers') {
+        my $html = "<html><head><title>$subj</title></head><body>\n";
+        my $i = 1;
+        foreach my $head (@{$toc}) {
+            $html .= "$i: <a href=\"#digest_msg$i\">$head</a><br/>\n";
+            $i++;
+        }
+        $html .= "$body\n</body></html>\n";
+        $body = $html;
+    }
     my $reply = Mail::Message->build(
+        'Content-Type' => "text/" . ($opts{type} eq 'headers' ? "plain" : "html"),
         data => $body,
         Subject => "Re: " . $subj,
         To => $to =~ /@/ ? $to : 'freeme@localhost',
@@ -512,7 +569,7 @@ sub process_msg {
     foreach my $user (keys %subs) {
         my ($yes, $no);
         foreach my $sub (@{$subs{$user}}) {
-            next if ($sub->{type} ne 'full');
+            next if ($sub->{type});
             if (!$yes && $sub->{cmd} eq 'subscribe' && match_msg($msg, $sub)) {
                 $yes = 1;
             } elsif (!$no && $sub->{cmd} eq 'ignore' && match_msg($msg, $sub)) {
@@ -636,12 +693,12 @@ sub usage {
     $body .= "  -h, --head NAME=REGEX message header field NAME matches regex REGEX\n";
 #    $body .= "      --lines=COUNT     truncate body of message at COUNT lines\n";
     $body .= "  -p, --period=TIME     summarize at intervals of TIME [send/show/subscribe]\n";
-    $body .= "                          (use suffix {s,m,h,d,w} for {sc,mn,hr,dy,wk}}\n";
+    $body .= "                          (use suffix {s,m,h,d,w} for {sec,min,hour,day,week}}\n";
 #    $body .= "      --size=SIZE       truncate body of messages at SIZE bytes\n";
     $body .= "  -s, --subject=REGEX   message subject matches REGEX\n";
     $body .= "  -t, --to=REGEX        message to matching REGEX\n";
     $body .= "  -T, --type=TYPE       summarize in type TYPE [ignore/send/show/subscribe]\n";
-    $body .= "                          (TYPE one of {digest,headers,full [ignore]})\n";
+    $body .= "                          (TYPE one of {digest,headers})\n";
     return $body;
 }
 

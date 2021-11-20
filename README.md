@@ -20,6 +20,9 @@ messages received.  Original e-mails are kept in a historical archive
 that can be queried on demand.  FreeMe can also be used in a
 single-user configuration.
 
+FreeMe is in active production at the NASA Advanced Supercomputing
+Facility.
+
 For installation details, see "INSTALL".  For usage details, see
 "freeme.1" (in man page format, viewable with "nroff -man").  For
 license details, see "COPYING".
