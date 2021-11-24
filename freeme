@@ -258,7 +258,8 @@ sub deliver {
                 );
                 next if (!$box);
                 MESSAGE: foreach my $msg ($box->messages) {
-                    next if ($msg->timestamp < $start ||                                                                              $msg->timestamp >= $end || !match_msg($msg, $sub));
+                    next if ($msg->timestamp < $start ||
+                        $msg->timestamp >= $end || !match_msg($msg, $sub));
                     foreach my $sub2 (@{$subs{$to}}) {
                         next MESSAGE if ($sub2->{cmd} eq 'ignore' &&
                             $sub->{type} eq $sub2->{type} && match_msg($msg, $sub2));
