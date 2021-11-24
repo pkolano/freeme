@@ -307,6 +307,7 @@ sub load_subs {
         next if (!$names{$name});
         if (open(FILE, $file)) {
             while (<FILE>) {
+                chomp;
                 process_cmd($_, $names{$name}, 1);
             }
             close FILE;
