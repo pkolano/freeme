@@ -19,3 +19,4 @@ CHANGES
     - Fixed show of messages before specified date on same day
     - Fixed show of messages on last day when time range spans multiple days
     - Fixed error handling of extraneous arguments on command line
+    - Fixed missing embedded dependency Time::Zone
