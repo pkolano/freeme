@@ -13,3 +13,9 @@ CHANGES
     - Fixed bad delivery when subscription exists for user not defined in config
     - Fixed parsing of show commands when date specification has spaces
     - Removed "full" type, which is now implied when --type not specified
+
+* FreeMe 1.2 (11/24/21)
+    - Fixed save of subscriptions with options containing whitespace
+    - Fixed show of messages before specified date on same day
+    - Fixed show of messages on last day when time range spans multiple days
+    - Fixed error handling of extraneous arguments on command line

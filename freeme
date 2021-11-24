@@ -2,7 +2,7 @@
 #
 # Notices
 # FreeMe
-# Copyright (C) 2019-2021 United States Government as represented by the
+# Copyright (C) 2019 United States Government as represented by the
 # Administrator of the National Aeronautics and Space Administration.
 # All Rights Reserved.
 # 
@@ -55,10 +55,11 @@ use List::Util qw(max);
 require Mail::Box::Manager;
 require Mail::Message;
 use POSIX qw(strftime);
+require String::ShellQuote;
 use Term::ANSIColor;
 use Text::ParseWords;
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 # solarized foreground colors
 my @colors = qw(
@@ -368,7 +369,7 @@ sub process_cmd {
     my @args;
     if (ref $subj) {
         @args = @{$subj};
-        $subj = join(" ", @args);
+        $subj = String::ShellQuote::shell_quote_best_effort(@args);
     } else {
         @args = quotewords('\s+', 0, $subj);
     }
@@ -390,9 +391,13 @@ sub process_cmd {
             $opts{lc($key)} = $val;
         }
     );
+    my $argc = scalar(@ARGV);
     @ARGV = @save;
     if (!$rc) {
         $body = "ERROR: Invalid options\n\n" . usage();
+        $err = 1;
+    } elsif ($cmd ne 'unsubscribe' && $argc) {
+        $body = "ERROR: Extraneous arguments\n";
         $err = 1;
     } elsif ($cmd eq 'help') {
         $body = usage();
@@ -452,11 +457,10 @@ sub process_cmd {
             my $unit = defined $2 ? $2 : 'h';
             $period = $1 * $seconds{lc $unit};
         }
-     
-        for (my $t = $opts{time}; $t < $opts{time} + $period;
-                $t += $seconds{d}) {
-            my $name = strftime("$conf{base_dir}/mail/%Y/%m/%d",
-                localtime $t);
+
+        for (my $t = $opts{time}; $t <= max($opts{time} + $period,
+                $opts{time} + $seconds{d}); $t += $seconds{d}) {
+            my $name = strftime("$conf{base_dir}/mail/%Y/%m/%d", localtime $t);
             # disable warnings about missing files
             local $SIG{__WARN__} = sub {};
             my $box = $mgr->open(
@@ -465,7 +469,8 @@ sub process_cmd {
             );
             next if (!$box);
             foreach my $amsg ($box->messages) {
-                next if ($amsg->timestamp > $opts{time} + $period ||
+                next if ($amsg->timestamp < $opts{time} ||
+                        $amsg->timestamp >= $opts{time} + $period ||
                         !match_msg($amsg, \%opts));
                 $body .= build_body($amsg, $opts{type}, $toc);
             }
@@ -6663,6 +6668,10 @@ $fatpacked{"Object/Realize/Later.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\
   sub willRealize() {'$becomes'}
   WILL_CODE
 OBJECT_REALIZE_LATER
+
+$fatpacked{"String/ShellQuote.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'STRING_SHELLQUOTE';
+  package String::ShellQuote;use strict;use vars qw($VERSION @ISA @EXPORT);require Exporter;$VERSION='1.04';@ISA=qw(Exporter);@EXPORT=qw(shell_quote shell_quote_best_effort shell_comment_quote);sub croak {require Carp;goto&Carp::croak}sub _shell_quote_backend {my@in=@_;my@err=();if (0){require RS::Handy;print RS::Handy::data_dump(\@in)}return \@err,'' unless@in;my$ret='';my$saw_non_equal=0;for (@in){if (!defined $_ or $_ eq ''){$_="''";next}if (s/\x00//g){push@err,"No way to quote string containing null (\\000) bytes"}my$escape=0;if (/=/){if (!$saw_non_equal){$escape=1}}else {$saw_non_equal=1}if (m|[^\w!%+,\-./:=@^]|){$escape=1}if ($escape || (!$saw_non_equal && /=/)){s/'/'\\''/g;s|((?:'\\''){2,})|q{'"} . (q{'} x (length($1) / 4)) . q{"'}|ge;$_="'$_'";s/^''//;s/''$//}}continue {$ret .= "$_ "}chop$ret;return \@err,$ret}sub shell_quote {my ($rerr,$s)=_shell_quote_backend @_;if (@$rerr){my%seen;@$rerr=grep {!$seen{$_}++}@$rerr;my$s=join '',map {"shell_quote(): $_\n"}@$rerr;chomp$s;croak$s}return$s}sub shell_quote_best_effort {my ($rerr,$s)=_shell_quote_backend @_;return$s}sub shell_comment_quote {return '' unless @_;unless (@_==1){croak "Too many arguments to shell_comment_quote " ."(got " .@_ ." expected 1)"}local $_=shift;s/\n/\n#/g;return $_}1;
+STRING_SHELLQUOTE
 
 $fatpacked{"Sub/Exporter/Progressive.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'SUB_EXPORTER_PROGRESSIVE';
   package Sub::Exporter::Progressive;$Sub::Exporter::Progressive::VERSION='0.001013';use strict;use warnings;sub _croak {require Carp;&Carp::croak}sub import {my ($self,@args)=@_;my$inner_target=caller;my$export_data=sub_export_options($inner_target,@args);my$full_exporter;no strict 'refs';no warnings 'once';@{"${inner_target}::EXPORT_OK"}=@{$export_data->{exports}};@{"${inner_target}::EXPORT"}=@{$export_data->{defaults}};%{"${inner_target}::EXPORT_TAGS"}=%{$export_data->{tags}};*{"${inner_target}::import"}=sub {use strict;my ($self,@args)=@_;if (grep {length ref $_ or $_ !~ / \A [:-]? \w+ \z /xm}@args){_croak 'your usage of Sub::Exporter::Progressive requires Sub::Exporter to be installed' unless eval {require Sub::Exporter};$full_exporter ||=Sub::Exporter::build_exporter($export_data->{original});goto$full_exporter}elsif (defined((my ($num)=grep {m/^\d/}@args)[0])){_croak "cannot export symbols with a leading digit: '$num'"}else {require Exporter;s/ \A - /:/xm for@args;@_=($self,@args);goto \&Exporter::import}};return}my$too_complicated=<<'DEATH';sub sub_export_options {my ($inner_target,$setup,$options)=@_;my@exports;my@defaults;my%tags;if (($setup||'')eq '-setup'){my%options=%$options;OPTIONS: for my$opt (keys%options){if ($opt eq 'exports'){_croak$too_complicated if ref$options{exports}ne 'ARRAY';@exports=@{$options{exports}};_croak$too_complicated if grep {length ref $_}@exports}elsif ($opt eq 'groups'){%tags=%{$options{groups}};for my$tagset (values%tags){_croak$too_complicated if grep {length ref $_ or $_ =~ / \A - (?! all \b ) /x}@{$tagset}}@defaults=@{$tags{default}|| []}}else {_croak$too_complicated}}@{$_}=map {/ \A  [:-] all \z /x ? @exports : $_}@{$_}for \@defaults,values%tags;$tags{all}||=[@exports ];my%exports=map {$_=>1}@exports;my@errors=grep {not $exports{$_}}@defaults;_croak join(', ',@errors)." is not exported by the $inner_target module\n" if@errors}return {exports=>\@exports,defaults=>\@defaults,original=>$options,tags=>\%tags,}}1;
