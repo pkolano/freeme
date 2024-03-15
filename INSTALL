@@ -27,12 +27,12 @@ FreeMe Installation and Configuration
             install -m 755 freeme $PREFIX/bin/
             install -m 644 freeme.1 $PREFIX/man/man1/
 
-	2.2. Single-user installation
+    2.2. Single-user installation
 
         In a single-user installation, the configuration file must exist
         in the user's home directory:
 
-		    install -m 600 freemerc ~/.freemerc
+            install -m 600 freemerc ~/.freemerc
 
         Typical values for the above variables would be:
 
@@ -108,7 +108,7 @@ FreeMe Installation and Configuration
             subscriptions will be delivered.  For example, the
             following:
 
-	            */5 * * * * $PREFIX/bin/freeme deliver >&/dev/null
+                */5 * * * * $PREFIX/bin/freeme deliver >&/dev/null
 
             would deliver subscriptions in at most 5 minute intervals.
             Subscriptions that define a period less than this (e.g.
@@ -150,7 +150,7 @@ FreeMe Installation and Configuration
         and subscribe to them.  Other configurations are possible by
         changing various details, but will not be discussed.
 
-	    3.3.1. /etc/freemerc
+        3.3.1. /etc/freemerc
 
             Subscription destinations must be mapped to users who issue
             directives via the command-line interface and e-mail
@@ -252,7 +252,7 @@ FreeMe Installation and Configuration
                 by adding an appropriate forced command to the
                 authorized_keys entry:
 
-	                command="$PREFIX/bin/freeme process" <key.pub contents>
+                    command="$PREFIX/bin/freeme process" <key.pub contents>
 
                 Here, "<key.pub contents>" must be replaced with the
                 actual contents of the public key file associated with

@@ -59,7 +59,7 @@ require String::ShellQuote;
 use Term::ANSIColor;
 use Text::ParseWords;
 
-our $VERSION = 1.2;
+our $VERSION = 1.3;
 
 # solarized foreground colors
 my @colors = qw(
@@ -170,7 +170,7 @@ sub build_body {
     my $stamp = localtime($msg->timestamp);
     my $subj = $msg->subject;
     my $header = "$stamp $from $subj";
-    push(@{$toc}, $header);
+    push(@{$toc}, [$stamp, $from, $subj]);
     my $i = scalar(@{$toc});
     if ($type eq 'headers') {
         $body = $header . "\n";
@@ -205,6 +205,63 @@ sub build_body {
     } else {
         return $body;
     }
+}
+
+####################
+#### build_html ####
+####################
+sub build_html {
+    my ($title, $toc, $body) = @_;
+    my $html = "<html><head><title>$title</title>\n";
+    $html .= << 'CSS';
+<style>
+.accordion > input[name="collapse"] { display: none; }
+.accordion label, .accordion .content{ margin: 0 auto; }
+.accordion .content { overflow: hidden; max-height: 0; }
+.accordion > input[name="collapse"]:checked ~ .content { max-height: 9999px; height: auto; padding: 10px; }
+.accordion label { display: block; }
+.accordion > input[name="collapse"]:checked ~ .content { border-top: 0; }
+.accordion .handle { margin: 0; font-size: 14px; }
+.accordion label { cursor: pointer; font-weight: normal; user-select: none; }
+.accordion .handle label:before { content: '\002B'; }
+.accordion > input[name="collapse"]:checked ~ .handle label:before { content: '\2212'; }
+</style>
+CSS
+    $html .= "</head><body>\n";
+
+    my $i = 1;
+    my %sets;
+    foreach my $head (@{$toc}) {
+        my ($stamp, $from, $subj) = @{$head};
+        my $item = "$i:\t<a href=\"#digest_msg$i\">$stamp $from $subj</a><br/>\n";
+        push(@{$sets{$subj}}, [$item, $i]);
+        $i++;
+    }
+    foreach my $head (@{$toc}) {
+        my ($stamp, $from, $subj) = @{$head};
+        next if (!defined $sets{$subj});
+        my @items = @{$sets{$subj}};
+        if (scalar(@items > 1)) {
+            my $first = $items[0]->[0];
+            $i= $items[0]->[1];
+            $first =~ s/^(\d+)//;
+            $first =~ s/br\//\/button/;
+            $first =~ s/href=[^>]*>/style="color:blue;text-decoration:underline">/;
+            $html .= "<section class=\"accordion\">\n";
+            $html .= "<input type=\"checkbox\" name=\"collapse\" id=\"handle$i\">\n";
+            $html .= "<h2 class=\"handle\">\n";
+            $html .= "<label for=\"handle$i\">$first</label>\n";
+            $html .= "</h2>\n";
+            $html .= "<div class=\"content\">\n";
+            $html .= $_->[0] foreach (@items);
+            $html .= "</div>\n";
+        } else {
+            $html .= $items[0]->[0];
+        }
+        delete $sets{$subj};
+    }
+    $html .= "$body\n</body></html>\n";
+    return $html;
 }
 
 #################
@@ -271,16 +328,8 @@ sub deliver {
             if (scalar(@{$toc})) {
                 my $subj = "subscribe " . join(" ",
                     map {"--$_=$sub->{$_}"} grep(!/^cmd$/, keys(%{$sub})));
-                if ($cmd0 ne 'show' && $sub->{type} ne 'headers') {
-                    my $html = "<html><head><title>$subj</title></head><body>\n";
-                    my $i = 1;
-                    foreach my $head (@{$toc}) {
-                        $html .= "$i: <a href=\"#digest_msg$i\">$head</a><br/>\n";
-                        $i++;
-                    }
-                    $html .= "$body\n</body></html>\n";
-                    $body = $html;
-                }
+                $body = build_html($subj, $toc, $body)
+                    if ($cmd0 ne 'show' && $sub->{type} ne 'headers');
                 my $reply = Mail::Message->build(
                     'Content-Type' => "text/" .
                         ($cmd0 eq 'show' || $sub->{type} eq 'headers' ?
@@ -530,16 +579,8 @@ sub process_cmd {
     }
     return undef if ($parse);
     return $body if ($cmd0 ne 'process' && ($cmd ne 'send' || $err));
-    if ($cmd eq 'send' && $opts{type} ne 'headers') {
-        my $html = "<html><head><title>$subj</title></head><body>\n";
-        my $i = 1;
-        foreach my $head (@{$toc}) {
-            $html .= "$i: <a href=\"#digest_msg$i\">$head</a><br/>\n";
-            $i++;
-        }
-        $html .= "$body\n</body></html>\n";
-        $body = $html;
-    }
+    $body = build_html($subj, $toc, $body)
+        if ($cmd eq 'send' && $opts{type} ne 'headers');
     my $reply = Mail::Message->build(
         'Content-Type' => "text/" . ($opts{type} eq 'headers' ? "plain" : "html"),
         data => $body,
@@ -641,8 +682,8 @@ sub store_msg {
         localtime($msg->timestamp));
     my $box = $opens->{$name};
     if (!defined $box) {
-        mkpath(dirname($name), 0, 0711);
         umask 0022;
+        mkpath(dirname($name), 0, 0711);
         $box = $mgr->open(
             access => 'a',
             create => 1,
